@@ -3,15 +3,11 @@
 #include <cstdint>
 
 #define USE_CELLS_WITHOUT_DIMENSION
-#define COUNT_ONLY
 
 #include "include/argparser.h"
 #include "include/parameters.h"
 #include "include/usage/flagser-count.h"
 #include "include/complex/directed_flag_complex_in_memory_computer.h" 
-// #include "../include/persistence.h"
-
-
 
 
 typedef std::vector<std::pair<int, vertex_index_t>> coboundaries_t;
@@ -20,7 +16,7 @@ typedef struct{} NoneType;
 struct nads_computer_t {
   const filtered_directed_graph_t& graph;
   uint64_t nads = 0;
-  coboundaries_t coboundaries{};
+  coboundaries_t coboundaries{};  //have on coboundary vector per thread, reuse per simplex to save allocs
 
   void done() {}
 
@@ -73,12 +69,19 @@ struct nads_computer_t {
 
 
 std::vector<uint64_t> count_nads(const filtered_directed_graph_t& graph, const flagser_parameters& params) {
-	std::vector<uint64_t> nads;
-  directed_flag_complex_in_memory_t<NoneType> complex(graph, params.nb_threads, 100);
+  int min_dimension = 1;
+  if (params.min_dimension >= 1) min_dimension = params.min_dimension;
+  int max_dimension = 100; //hacky
+  if (params.max_dimension >= 1) max_dimension = params.max_dimension;
+  assert(min_dimension <= max_dimension);
+
+  // generate flag complex
+  directed_flag_complex_in_memory_t<NoneType> complex(graph, params.nb_threads, max_dimension);
   
   std::cout << "generated flag complex" << std::endl;
 
-  for (int dim = 0; dim <10; dim++) {
+	std::vector<uint64_t> nads(max_dimension - min_dimension + 1, 0);
+  for (int dim = min_dimension-1; dim <= max_dimension; dim++) {
     //initialize threads
 		std::vector<nads_computer_t> nads_counter(params.nb_threads, nads_computer_t{graph});
     //actually compute
@@ -88,11 +91,15 @@ std::vector<uint64_t> count_nads(const filtered_directed_graph_t& graph, const f
     uint64_t nads_in_dim = 0;
     for (const auto& thread : nads_counter) nads_in_dim += thread.nads;
     
-    std::cout << dim+1 << ": "; 
-    std::cout << nads_in_dim << "\n"; 
+    std::cout << dim+1 << ": " << nads_in_dim << std::endl; 
     nads.push_back(nads_in_dim);
+
+    if (nads_in_dim == 0) {
+      // => nads in higher dimensions must also be 0, thus we may abort.
+      nads.resize(dim);
+      break;
+    }
   }
-  
 	return nads;
 }
 
