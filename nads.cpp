@@ -91,7 +91,7 @@ std::vector<uint64_t> count_nads(const filtered_directed_graph_t& graph, const f
     uint64_t nads_in_dim = 0;
     for (const auto& thread : nads_counter) nads_in_dim += thread.nads;
     
-    std::cout << dim+1 << ": " << nads_in_dim << std::endl; 
+    std::cout << dim+1 << ": " << nads_in_dim << std::endl;
     nads.push_back(nads_in_dim);
 
     if (nads_in_dim == 0) {
