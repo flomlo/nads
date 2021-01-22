@@ -80,7 +80,7 @@ std::vector<uint64_t> count_nads(const filtered_directed_graph_t& graph, const f
   
   std::cout << "generated flag complex" << std::endl;
 
-	std::vector<uint64_t> nads(max_dimension - min_dimension + 1, 0);
+	std::vector<uint64_t> nads;
   for (int dim = min_dimension-1; dim <= max_dimension; dim++) {
     //initialize threads
 		std::vector<nads_computer_t> nads_counter(params.nb_threads, nads_computer_t{graph});
@@ -91,14 +91,11 @@ std::vector<uint64_t> count_nads(const filtered_directed_graph_t& graph, const f
     uint64_t nads_in_dim = 0;
     for (const auto& thread : nads_counter) nads_in_dim += thread.nads;
     
+    // nads_in_dim == 0 => nads in higher dimensions must also be 0, thus we may abort.
+    if (nads_in_dim == 0) break;
+
     std::cout << dim+1 << ": " << nads_in_dim << std::endl;
     nads.push_back(nads_in_dim);
-
-    if (nads_in_dim == 0) {
-      // => nads in higher dimensions must also be 0, thus we may abort.
-      nads.resize(dim);
-      break;
-    }
   }
 	return nads;
 }
