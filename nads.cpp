@@ -69,10 +69,10 @@ struct nads_computer_t {
 
 
 std::vector<uint64_t> count_nads(const filtered_directed_graph_t& graph, const flagser_parameters& params) {
-  int min_dimension = 1;
-  if (params.min_dimension >= 1) min_dimension = params.min_dimension;
+  int min_dimension = 2;
+  if (params.min_dimension >= 2) min_dimension = params.min_dimension;
   int max_dimension = 100; //hacky
-  if (params.max_dimension >= 1) max_dimension = params.max_dimension;
+  if (params.max_dimension >= 2) max_dimension = params.max_dimension;
   assert(min_dimension <= max_dimension);
 
   // generate flag complex
@@ -81,7 +81,7 @@ std::vector<uint64_t> count_nads(const filtered_directed_graph_t& graph, const f
   std::cout << "generated flag complex" << std::endl;
 
 	std::vector<uint64_t> nads;
-  for (int dim = min_dimension-1; dim <= max_dimension; dim++) {
+  for (int dim = min_dimension-2; dim <= max_dimension-2; dim++) {
     //initialize threads
 		std::vector<nads_computer_t> nads_counter(params.nb_threads, nads_computer_t{graph});
     //actually compute
@@ -94,7 +94,7 @@ std::vector<uint64_t> count_nads(const filtered_directed_graph_t& graph, const f
     // nads_in_dim == 0 => nads in higher dimensions must also be 0, thus we may abort.
     if (nads_in_dim == 0) break;
 
-    std::cout << dim+1 << ": " << nads_in_dim << std::endl;
+    std::cout << dim+2 << ": " << nads_in_dim << std::endl;
     nads.push_back(nads_in_dim);
   }
 	return nads;
