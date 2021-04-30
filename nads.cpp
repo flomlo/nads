@@ -8,6 +8,7 @@
 #include "include/parameters.h"
 #include "include/usage/flagser-count.h"
 #include "include/complex/directed_flag_complex_in_memory_computer.h" 
+//#include "include/complex/directed_flag_complex_computer.h" 
 
 
 typedef std::vector<std::pair<int, vertex_index_t>> coboundaries_t;
@@ -17,6 +18,8 @@ struct nads_computer_t {
   const filtered_directed_graph_t& graph;
   uint64_t nads = 0;
   coboundaries_t coboundaries{};  //have on coboundary vector per thread, reuse per simplex to save allocs
+
+  std::vector<size_t> nads_histo{std::vector<size_t>(10,0)}; //histogram of nads per d-2-simplex 
 
   void done() {}
 
@@ -54,21 +57,26 @@ struct nads_computer_t {
       }
     }
     // now calculate the number of almost-d-simplices
+    uint64_t new_nads = 0;
     for (size_t i = 0; i < coboundaries.size(); i++) {
       for (size_t j = i+1; j < coboundaries.size(); j++) {
         auto cb1 = coboundaries[i];
         auto cb2 = coboundaries[j];
         if (cb1.second != cb2.second){
-          if (cb1.first <= cb2.first) nads += 1;
-          if (cb1.first >= cb2.first) nads += 1;
+          if (cb1.first <= cb2.first) new_nads += 1;
+          if (cb1.first >= cb2.first) new_nads += 1;
         }
       }
     }
+    nads += new_nads;
+    // add value to histogram
+    if(new_nads >= nads_histo.size()) nads_histo.resize(new_nads+1);
+    nads_histo[new_nads] += 1;
   }
 };
 
 
-std::vector<uint64_t> count_nads(const filtered_directed_graph_t& graph, const flagser_parameters& params) {
+std::pair<std::vector<uint64_t>, std::vector<std::vector<size_t>>> count_nads(const filtered_directed_graph_t& graph, const flagser_parameters& params) {
   int min_dimension = 2;
   if (params.min_dimension >= 2) min_dimension = params.min_dimension;
   int max_dimension = 100; //hacky
@@ -81,6 +89,7 @@ std::vector<uint64_t> count_nads(const filtered_directed_graph_t& graph, const f
   std::cout << "generated flag complex" << std::endl;
 
 	std::vector<uint64_t> nads;
+  std::vector<std::vector<size_t>> nads_histo;
   for (int dim = min_dimension-2; dim <= max_dimension-2; dim++) {
     //initialize threads
 		std::vector<nads_computer_t> nads_counter(params.nb_threads, nads_computer_t{graph});
@@ -90,14 +99,33 @@ std::vector<uint64_t> count_nads(const filtered_directed_graph_t& graph, const f
     //sum results
     uint64_t nads_in_dim = 0;
     for (const auto& thread : nads_counter) nads_in_dim += thread.nads;
-    
-    // nads_in_dim == 0 => nads in higher dimensions must also be 0, thus we may abort.
-    if (nads_in_dim == 0) break;
+
+    //sum histograms
+    size_t hist_max_size = 0;
+    for (const auto& thread : nads_counter) hist_max_size = std::max(thread.nads_histo.size(), hist_max_size);
+    std::vector<size_t> nads_histo_in_dim(hist_max_size, 0);
+    for (const auto& thread : nads_counter) {
+      for (size_t i = 0; i < hist_max_size; i++) {
+        if (i < thread.nads_histo.size()) nads_histo_in_dim[i] += thread.nads_histo[i];
+      }
+    }
+    //debug
+    /*
+    std::cout << '[';
+    for (size_t i = 0; i < hist_max_size; i++) {
+      std::cout << nads_histo_in_dim[i] << ',' << ' ';
+    }
+    std::cout << ']' ;
+    */
 
     std::cout << dim+2 << ": " << nads_in_dim << std::endl;
+
+    // nads_in_dim == 0 => nads in higher dimensions must also be 0, thus we may abort.
+    if (nads_in_dim == 0) break;
     nads.push_back(nads_in_dim);
+    nads_histo.push_back(nads_histo_in_dim);
   }
-	return nads;
+	return std::make_pair(nads, nads_histo);
 }
 
 int main(int argc, char** argv) {
