@@ -12,7 +12,7 @@
 
 
 typedef std::vector<std::pair<int, vertex_index_t>> coboundaries_t;
-typedef std::vector<std::pair<vertex_index_t, vertex_index_t>> edges_t;
+typedef std::map<std::pair<vertex_index_t, vertex_index_t>, uint32_t> edges_t;
 typedef struct{} NoneType;
 
 struct ads_computer_t {
@@ -64,8 +64,8 @@ struct ads_computer_t {
           auto cb1 = coboundaries[i];
           auto cb2 = coboundaries[j];
           if (cb1.second != cb2.second) {
-            if (cb1.first <= cb2.first) edges.push_back({cb1.second, cb2.second});
-            if (cb1.first >= cb2.first) edges.push_back({cb2.second, cb1.second});
+            if (cb1.first <= cb2.first) edges[{cb1.second, cb2.second}] =+ 1;
+            if (cb1.first >= cb2.first) edges[{cb2.second, cb1.second}] =+ 1;
           }
         }
       }
@@ -95,16 +95,18 @@ std::vector<edges_t> sample_edges(const filtered_directed_graph_t& graph, const 
     
     //sum results
     edges_t edges_in_dim{};
-    for (const auto& thread : ads_enumerator) edges_in_dim.insert(edges_in_dim.end(), thread.edges.begin(), thread.edges.end());
+    for (const auto& thread : ads_enumerator) {
+      for (auto [k,v] : thread.edges) {
+        edges_in_dim[k] += v;
+      }
+    } 
 
     //debug
     /*
     std::cout << '[';
-    for (auto edge : edges_in_dim) std::cout << '(' << edge.first << ',' << edge.second << "), ";
-    std::cout << ']' ;
+    for (auto [k,v] : edges_in_dim) std::cout << '(' << '(' << k.first << ',' << k.second << ')' << v << ')';
+    std::cout << ']' << std::endl ;
     */
-
-    //std::cout << dim+2 << ": " << edges_in_dim << std::endl;
 
     // nads_in_dim == 0 => nads in higher dimensions must also be 0, thus we may abort.
     if (edges_in_dim.size() == 0) break;
@@ -126,6 +128,6 @@ int main(int argc, char** argv) {
 
 		filtered_directed_graph_t graph = read_filtered_directed_graph(input_filename, params);
 
-		auto cell_count = sample_edges(graph, params, 1);
+		auto cell_count = sample_edges(graph, params, 1000);
 	} catch (const std::exception& e) { std::cout << e.what() << std::endl; }
 }
